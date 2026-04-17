@@ -1,6 +1,6 @@
 {
   "name": "ai-rules",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "AI 编程助手规则单一事实源，支持同步到 Claude Code / Codex / Cline / Trae / Antigravity",
   "private": true,
   "scripts": {
