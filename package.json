@@ -5,8 +5,7 @@
   "private": true,
   "scripts": {
     "sync": "node scripts/sync.js",
-    "sync:dry": "node scripts/sync.js --dry",
-    "sync:all": "node scripts/sync.js --all"
+    "sync:dry": "node scripts/sync.js --dry"
   },
   "engines": {
     "node": ">=16"

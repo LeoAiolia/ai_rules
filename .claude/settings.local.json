@@ -1,7 +1,8 @@
 {
   "permissions": {
     "allow": [
-      "Bash(node scripts/sync.js --dry)"
+      "Bash(node scripts/sync.js --dry)",
+      "Bash(node scripts/sync.js)"
     ]
   }
 }
