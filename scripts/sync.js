@@ -85,7 +85,34 @@ function readSource(sourceRelPath) {
 
 function buildContent(banner, sourceContent) {
   const safeBanner = banner ?? '';
-  return `${safeBanner}\n${sourceContent}`;
+  const stripped = stripChangelog(sourceContent);
+  return `${safeBanner}\n${stripped}`;
+}
+
+/**
+ * 移除"变更日志"章节（下游文件对 AI 无意义）
+ * 规则：
+ *   - 匹配 `## <数字>. 变更日志` 或 `## 变更日志` 作为章节起点
+ *   - 从该标题开始删除到文件末尾（变更日志约定为文末最后一节）
+ *   - 末尾保留一个换行
+ */
+function stripChangelog(content) {
+  const lines = content.split('\n');
+  const headingPattern = /^##\s+(\d+\.\s+)?变更日志\s*$/;
+  const idx = lines.findIndex((line) => headingPattern.test(line));
+  if (idx === -1) return content;
+
+  // 向前回溯，去掉紧邻标题的分隔符 `---` 与空行
+  let end = idx;
+  while (end > 0) {
+    const prev = lines[end - 1].trim();
+    if (prev === '' || prev === '---') {
+      end -= 1;
+    } else {
+      break;
+    }
+  }
+  return `${lines.slice(0, end).join('\n').trimEnd()}\n`;
 }
 
 // ============ 路径工具 ============
