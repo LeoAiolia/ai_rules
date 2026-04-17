@@ -259,15 +259,71 @@ function handleGlobalTarget(target, ctx) {
 function handleManualTarget(target, ctx) {
   logger.warn(`${target.name}`);
   if (target.hint) logger.plain(`  提示：${target.hint}`);
+
+  // 分片大小：未配置或 ≤0 视为不分片
+  const chunkSize = Number.isFinite(target.chunkSize) && target.chunkSize > 0
+    ? target.chunkSize
+    : 0;
+  const chunks = chunkSize > 0 ? chunkContent(ctx.content, chunkSize) : [ctx.content];
+
   if (ctx.isDryRun) {
-    logger.info('  [DRY] 将打印规则全文供手动粘贴');
+    const detail = chunkSize > 0 ? `，分 ${chunks.length} 片（每片≤${chunkSize} 字符）` : '';
+    logger.info(`  [DRY] 将打印规则全文供手动粘贴${detail}`);
     return;
   }
+
   logger.plain('');
-  logger.plain('────────── 规则内容开始 ──────────');
-  logger.plain(ctx.content);
-  logger.plain('────────── 规则内容结束 ──────────');
-  logger.plain('');
+  chunks.forEach((chunk, i) => {
+    const header = chunks.length > 1
+      ? `────── 分片 ${i + 1}/${chunks.length}（${chunk.length} 字符）──────`
+      : '────────── 规则内容开始 ──────────';
+    logger.plain(header);
+    logger.plain(chunk);
+    logger.plain('──────────────────────────────────');
+    logger.plain('');
+  });
+}
+
+/**
+ * 将文本按最大字符数分片。
+ * 规则：
+ *   1. 优先按行聚合，不跨行切割，保持 Markdown 可读性
+ *   2. 单行超过 maxSize 时，对该行做硬切分（保证不超限）
+ */
+function chunkContent(text, maxSize) {
+  if (maxSize <= 0) return [text];
+  const lines = text.split('\n');
+  const chunks = [];
+  let buffer = '';
+
+  // 冲刷当前缓冲区到 chunks
+  const flush = () => {
+    if (buffer.length > 0) {
+      chunks.push(buffer);
+      buffer = '';
+    }
+  };
+
+  for (const line of lines) {
+    // 单行超限：先冲刷缓冲，再对该行硬切
+    if (line.length > maxSize) {
+      flush();
+      for (let i = 0; i < line.length; i += maxSize) {
+        chunks.push(line.slice(i, i + maxSize));
+      }
+      continue;
+    }
+    // +1 是换行符
+    const addition = buffer.length === 0 ? line : `\n${line}`;
+    if (buffer.length + addition.length > maxSize) {
+      flush();
+      buffer = line;
+    } else {
+      buffer += addition;
+    }
+  }
+  flush();
+  return chunks;
 }
 
 function writeFile(outputAbs, content, isDryRun, name) {

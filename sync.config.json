@@ -28,9 +28,10 @@
       "relativePath": ".clinerules/rules.md"
     },
     {
-      "name": "Trae (项目级)",
-      "scope": "project",
-      "relativePath": ".trae/rules/project_rules.md"
+      "name": "Trae (手动粘贴，分片)",
+      "scope": "manual",
+      "chunkSize": 1000,
+      "hint": "Trae 每次粘贴上限 1000 字符，请按分片顺序依次粘贴。"
     },
     {
       "name": "Antigravity (未知路径，复制粘贴)",
