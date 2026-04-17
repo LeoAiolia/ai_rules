@@ -28,10 +28,16 @@
       "relativePath": ".clinerules/rules.md"
     },
     {
-      "name": "Trae (手动粘贴，分片)",
-      "scope": "manual",
-      "chunkSize": 1000,
-      "hint": "Trae 每次粘贴上限 1000 字符，请按分片顺序依次粘贴。"
+      "name": "Trae (全局)",
+      "scope": "global",
+      "source": "RULES_COMPACT.md",
+      "output": "~/.trae/user_rules/rules.md"
+    },
+    {
+      "name": "Trae CN (全局)",
+      "scope": "global",
+      "source": "RULES_COMPACT.md",
+      "output": "~/.trae-cn/user_rules/rules.md"
     },
     {
       "name": "Antigravity (未知路径，复制粘贴)",

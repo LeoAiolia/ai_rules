@@ -141,7 +141,8 @@ npm run sync:dry       # 预演模式，不写入文件
 | Codex (项目级) | project | `{项目目录}/AGENTS.md` |
 | Codex (全局) | global | `~/.codex/AGENTS.md` |
 | Cline (项目级) | project | `{项目目录}/.clinerules/rules.md` |
-| Trae | manual | 打印全文**分片**（每片 ≤1000 字符）供粘贴 |
+| Trae (全局) | global | `~/.trae/user_rules/rules.md`，使用 `RULES_COMPACT.md` |
+| Trae CN (全局) | global | `~/.trae-cn/user_rules/rules.md`，使用 `RULES_COMPACT.md` |
 | Antigravity | manual | 打印全文供粘贴 |
 
 ### 新增工具
@@ -191,8 +192,8 @@ A：当前版本纯交互式。如需 CI / 非交互模式，可后续扩展 `--
 **Q：我想让某个工具只用部分规则？**
 A：当前版本是全量分发。若有此需求，可后续扩展按二级标题切片分发。
 
-**Q：Trae 为什么是手动粘贴？**
-A：Trae 规则面板每次粘贴上限 1000 字符，脚本会把 `RULES.md` 按行切片（不跨行切、单行超限硬切），依序打印每一片及分片序号，用户按顺序粘贴即可。分片大小通过配置项 `chunkSize` 调整。
+**Q：Trae / Trae CN 规则为什么和其他工具不同？**
+A：Trae 系列工具规则有 1000 字符上限，因此使用独立的精简源 `RULES_COMPACT.md`（≤1000 字符），直接写入 `~/.trae/user_rules/rules.md`。`RULES.md` 保持完整详细，`RULES_COMPACT.md` 手动维护精简版本，两者同步更新。
 
 **Q：Antigravity 的规则路径是什么？**
 A：暂未确认，默认为 `manual` 模式打印全文。确认路径后改配置即可。

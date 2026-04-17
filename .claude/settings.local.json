@@ -2,7 +2,8 @@
   "permissions": {
     "allow": [
       "Bash(node scripts/sync.js --dry)",
-      "Bash(node scripts/sync.js)"
+      "Bash(node scripts/sync.js)",
+      "WebSearch"
     ]
   }
 }

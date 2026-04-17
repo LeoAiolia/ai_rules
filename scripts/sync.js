@@ -190,11 +190,11 @@ function parseSelection(input, totalCount) {
 
 // ============ 菜单展示 ============
 
-function printMenu(targets) {
+function printMenu(targets, defaultSource) {
   logger.plain('');
   logger.plain('==== 可同步的目标 ====');
   targets.forEach((t, i) => {
-    const scopeTag = describeScope(t);
+    const scopeTag = describeScope(t, defaultSource);
     logger.plain(`  ${String(i + 1).padStart(2)}. ${t.name}  ${scopeTag}`);
   });
   logger.plain('');
@@ -204,14 +204,16 @@ function printMenu(targets) {
 /**
  * 根据 scope 生成描述标签（使用 switch 穷举）
  */
-function describeScope(target) {
+function describeScope(target, defaultSource) {
+  const src = target.source ?? defaultSource;
+  const srcTag = target.source ? ` (${target.source})` : '';
   switch (target.scope) {
     case TargetScope.PROJECT:
-      return `[项目级 → {项目目录}/${target.relativePath}]`;
+      return `[项目级 → {项目目录}/${target.relativePath}${srcTag}]`;
     case TargetScope.GLOBAL:
-      return `[全局 → ${target.output}]`;
+      return `[全局 → ${target.output}${srcTag}]`;
     case TargetScope.MANUAL:
-      return '[手动粘贴]';
+      return `[手动粘贴${srcTag}]`;
     default:
       return '[未知作用域]';
   }
@@ -266,32 +268,44 @@ async function handleTarget(target, ctx) {
   }
 }
 
+/**
+ * 读取目标对应的源内容（优先 target.source，回退到 config.source）
+ */
+function resolveContent(target, config) {
+  const sourcePath = target.source ?? config.source;
+  const raw = readSource(sourcePath);
+  return buildContent(config.banner, raw);
+}
+
 async function handleProjectTarget(target, ctx) {
   if (!target.relativePath) {
     throw new Error('项目级目标缺少 relativePath');
   }
+  const content = resolveContent(target, ctx.config);
   const projectDir = await resolveProjectDir(ctx.rl, ctx.projectDirCache);
   const outputAbs = path.join(projectDir, target.relativePath);
-  writeFile(outputAbs, ctx.content, ctx.isDryRun, target.name);
+  writeFile(outputAbs, content, ctx.isDryRun, target.name);
 }
 
 function handleGlobalTarget(target, ctx) {
   if (!target.output) {
     throw new Error('全局目标缺少 output');
   }
+  const content = resolveContent(target, ctx.config);
   const outputAbs = expandHome(target.output);
-  writeFile(outputAbs, ctx.content, ctx.isDryRun, target.name);
+  writeFile(outputAbs, content, ctx.isDryRun, target.name);
 }
 
 function handleManualTarget(target, ctx) {
   logger.warn(`${target.name}`);
   if (target.hint) logger.plain(`  提示：${target.hint}`);
 
+  const content = resolveContent(target, ctx.config);
   // 分片大小：未配置或 ≤0 视为不分片
   const chunkSize = Number.isFinite(target.chunkSize) && target.chunkSize > 0
     ? target.chunkSize
     : 0;
-  const chunks = chunkSize > 0 ? chunkContent(ctx.content, chunkSize) : [ctx.content];
+  const chunks = chunkSize > 0 ? chunkContent(content, chunkSize) : [content];
 
   if (ctx.isDryRun) {
     const detail = chunkSize > 0 ? `，分 ${chunks.length} 片（每片≤${chunkSize} 字符）` : '';
@@ -378,20 +392,21 @@ async function main() {
   const { isDryRun } = parseArgs(process.argv);
 
   let config;
-  let sourceContent;
   try {
     config = loadConfig();
-    sourceContent = readSource(config.source);
+    // 预检：确保所有 target 的 source 文件都存在
+    const sourcePaths = new Set([config.source]);
+    config.targets.forEach((t) => { if (t.source) sourcePaths.add(t.source); });
+    sourcePaths.forEach((s) => readSource(s));
   } catch (err) {
     logger.error(err.message);
     process.exit(err.message.includes('源文件') ? ExitCode.SOURCE_MISSING : ExitCode.CONFIG_ERROR);
   }
 
-  const content = buildContent(config.banner, sourceContent);
   const rl = createPrompt();
 
   try {
-    printMenu(config.targets);
+    printMenu(config.targets, config.source);
     const answer = await askQuestion(rl, '请选择要同步的目标: ');
     const indices = parseSelection(answer, config.targets.length);
 
@@ -407,9 +422,10 @@ async function main() {
     logger.info(`已选择 ${indices.length} 个目标${isDryRun ? '（dry-run）' : ''}`);
     logger.plain('');
 
+    // content 在 ctx 中改为按 target 懒加载，避免全局共用
     const ctx = {
       rl,
-      content,
+      config,
       isDryRun,
       projectDirCache: { value: null },
     };
