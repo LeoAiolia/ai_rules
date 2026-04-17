@@ -3,33 +3,26 @@
  * 规则同步脚本（交互式）
  *
  * 功能：
- *   1. 菜单多选：显示目标列表，用户选择要同步的目标
- *   2. 项目级目标：提示用户输入项目根目录，写入到对应相对路径
- *   3. 全局目标：写入固定的全局路径（如 ~/.claude/CLAUDE.md）
- *   4. 手动目标（未知路径）：打印规则内容到终端，用户自行粘贴
+ *   1. 交互式菜单，用户选择要同步的目标
+ *   2. ruler 目标：检查 ruler 是否已安装，然后调用 ruler apply 写入目标项目
+ *   3. 全局目标（Trae/Trae-CN）：将精简规则写入全局路径
  *
  * 用法：
  *   node scripts/sync.js            # 交互式菜单
- *   node scripts/sync.js --dry      # 预演，不写入也不打印全文
+ *   node scripts/sync.js --dry      # 预演，不写入
  */
 
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
 const readline = require('readline');
+const { execSync } = require('child_process');
 
 // ============ 枚举 / 常量 ============
 
-/**
- * 目标作用域
- * - PROJECT：项目级，需要用户输入项目目录 + relativePath 拼接
- * - GLOBAL：全局级，使用固定 output 路径
- * - MANUAL：未知路径，打印内容供用户手动粘贴
- */
 const TargetScope = Object.freeze({
-  PROJECT: 'project',
-  GLOBAL: 'global',
-  MANUAL: 'manual',
+  RULER: 'ruler',   // 由 ruler 管理，调用 ruler apply
+  GLOBAL: 'global', // 直接写入全局固定路径
 });
 
 const CliFlag = Object.freeze({
@@ -45,6 +38,7 @@ const ExitCode = Object.freeze({
 
 const PROJECT_ROOT = path.resolve(__dirname, '..');
 const CONFIG_PATH = path.join(PROJECT_ROOT, 'sync.config.json');
+const RULER_AGENTS_PATH = path.join(PROJECT_ROOT, '.ruler', 'AGENTS.md');
 
 // ============ 日志 ============
 
@@ -83,18 +77,8 @@ function readSource(sourceRelPath) {
   return fs.readFileSync(sourceAbs, 'utf-8');
 }
 
-function buildContent(banner, sourceContent) {
-  const safeBanner = banner ?? '';
-  const stripped = stripChangelog(sourceContent);
-  return `${safeBanner}\n${stripped}`;
-}
-
 /**
- * 移除"变更日志"章节（下游文件对 AI 无意义）
- * 规则：
- *   - 匹配 `## <数字>. 变更日志` 或 `## 变更日志` 作为章节起点
- *   - 从该标题开始删除到文件末尾（变更日志约定为文末最后一节）
- *   - 末尾保留一个换行
+ * 移除变更日志章节（AI 不需要）
  */
 function stripChangelog(content) {
   const lines = content.split('\n');
@@ -102,7 +86,6 @@ function stripChangelog(content) {
   const idx = lines.findIndex((line) => headingPattern.test(line));
   if (idx === -1) return content;
 
-  // 向前回溯，去掉紧邻标题的分隔符 `---` 与空行
   let end = idx;
   while (end > 0) {
     const prev = lines[end - 1].trim();
@@ -115,11 +98,37 @@ function stripChangelog(content) {
   return `${lines.slice(0, end).join('\n').trimEnd()}\n`;
 }
 
-// ============ 路径工具 ============
+function buildContent(banner, sourceContent) {
+  const stripped = stripChangelog(sourceContent);
+  const safeBanner = (banner ?? '').trim();
+  return safeBanner.length > 0 ? `${safeBanner}\n\n${stripped}` : stripped;
+}
+
+// ============ ruler 工具 ============
 
 /**
- * 展开 ~ 为用户 HOME 目录
+ * 检测 ruler 是否已安装
  */
+function isRulerInstalled() {
+  try {
+    execSync('ruler --version', { stdio: 'ignore' });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * 将 RULES.md 内容写入 .ruler/AGENTS.md，作为 ruler 的规则源
+ */
+function syncRulerSource(config) {
+  const raw = readSource(config.source);
+  const content = stripChangelog(raw);
+  fs.writeFileSync(RULER_AGENTS_PATH, content, 'utf-8');
+}
+
+// ============ 路径工具 ============
+
 function expandHome(rawPath) {
   if (!rawPath) return rawPath;
   if (rawPath.startsWith('~')) {
@@ -128,9 +137,6 @@ function expandHome(rawPath) {
   return rawPath;
 }
 
-/**
- * 确保父目录存在
- */
 function ensureDir(filePath) {
   const dir = path.dirname(filePath);
   if (!fs.existsSync(dir)) {
@@ -141,10 +147,7 @@ function ensureDir(filePath) {
 // ============ 交互工具 ============
 
 function createPrompt() {
-  return readline.createInterface({
-    input: process.stdin,
-    output: process.stdout,
-  });
+  return readline.createInterface({ input: process.stdin, output: process.stdout });
 }
 
 function askQuestion(rl, question) {
@@ -154,18 +157,11 @@ function askQuestion(rl, question) {
 }
 
 /**
- * 解析用户输入的选择字符串
- * 支持格式：
- *   - "a" / "all"：全部
- *   - "q" / "quit"：退出（返回 null）
- *   - "1,3,5" 或 "1 3 5"：具体索引（从 1 开始）
- *   - "1-3"：范围
+ * 解析选择字符串：a=全部，q=退出，1,3 或 1-3 为具体选择
  */
 function parseSelection(input, totalCount) {
   const trimmed = input.trim().toLowerCase();
-  if (trimmed === 'q' || trimmed === 'quit' || trimmed === 'exit') {
-    return null;
-  }
+  if (trimmed === 'q' || trimmed === 'quit' || trimmed === 'exit') return null;
   if (trimmed === 'a' || trimmed === 'all' || trimmed === '') {
     return Array.from({ length: totalCount }, (_, i) => i);
   }
@@ -180,210 +176,126 @@ function parseSelection(input, totalCount) {
       }
     } else {
       const idx = parseInt(token, 10);
-      if (!Number.isNaN(idx) && idx >= 1 && idx <= totalCount) {
-        selected.add(idx - 1);
-      }
+      if (!Number.isNaN(idx) && idx >= 1 && idx <= totalCount) selected.add(idx - 1);
     }
   }
   return Array.from(selected).sort((a, b) => a - b);
 }
 
-// ============ 菜单展示 ============
+// ============ 菜单 ============
 
-function printMenu(targets, defaultSource) {
-  logger.plain('');
-  logger.plain('==== 可同步的目标 ====');
-  targets.forEach((t, i) => {
-    const scopeTag = describeScope(t, defaultSource);
-    logger.plain(`  ${String(i + 1).padStart(2)}. ${t.name}  ${scopeTag}`);
-  });
-  logger.plain('');
-  logger.plain('输入示例：1,3  或  1-3  或  a（全部）  或  q（退出）');
-}
-
-/**
- * 根据 scope 生成描述标签（使用 switch 穷举）
- */
 function describeScope(target, defaultSource) {
-  const src = target.source ?? defaultSource;
   const srcTag = target.source ? ` (${target.source})` : '';
   switch (target.scope) {
-    case TargetScope.PROJECT:
-      return `[项目级 → {项目目录}/${target.relativePath}${srcTag}]`;
+    case TargetScope.RULER:
+      return `[ruler → agent: ${target.agent}]`;
     case TargetScope.GLOBAL:
       return `[全局 → ${target.output}${srcTag}]`;
-    case TargetScope.MANUAL:
-      return `[手动粘贴${srcTag}]`;
     default:
       return '[未知作用域]';
   }
 }
 
+function printMenu(targets, defaultSource) {
+  logger.plain('');
+  logger.plain('==== 可同步的目标 ====');
+  targets.forEach((t, i) => {
+    logger.plain(`  ${String(i + 1).padStart(2)}. ${t.name}  ${describeScope(t, defaultSource)}`);
+  });
+  logger.plain('');
+  logger.plain('输入示例：1,3  或  1-3  或  a（全部）  或  q（退出）');
+}
+
 // ============ 项目目录缓存 ============
 
-/**
- * 询问项目目录，支持跨目标复用同一目录
- */
 async function resolveProjectDir(rl, cache) {
   if (cache.value) {
     const reuse = await askQuestion(
       rl,
       `是否复用上次的项目目录？\n  ${cache.value}\n  [Y/n]: `,
     );
-    if (reuse === '' || reuse.toLowerCase() === 'y') {
-      return cache.value;
-    }
+    if (reuse === '' || reuse.toLowerCase() === 'y') return cache.value;
   }
   const input = await askQuestion(rl, '请输入项目根目录绝对路径: ');
-  if (!input) {
-    throw new Error('项目目录不能为空');
-  }
+  if (!input) throw new Error('项目目录不能为空');
   const expanded = expandHome(input);
   const absolute = path.isAbsolute(expanded) ? expanded : path.resolve(process.cwd(), expanded);
-  if (!fs.existsSync(absolute)) {
-    throw new Error(`目录不存在: ${absolute}`);
-  }
-  if (!fs.statSync(absolute).isDirectory()) {
-    throw new Error(`路径不是目录: ${absolute}`);
-  }
+  if (!fs.existsSync(absolute)) throw new Error(`目录不存在: ${absolute}`);
+  if (!fs.statSync(absolute).isDirectory()) throw new Error(`路径不是目录: ${absolute}`);
   cache.value = absolute;
   return absolute;
 }
 
 // ============ 目标分发 ============
 
-/**
- * 处理单个目标（根据 scope 走不同分支）
- */
 async function handleTarget(target, ctx) {
   switch (target.scope) {
-    case TargetScope.PROJECT:
-      return handleProjectTarget(target, ctx);
+    case TargetScope.RULER:
+      return handleRulerTarget(target, ctx);
     case TargetScope.GLOBAL:
       return handleGlobalTarget(target, ctx);
-    case TargetScope.MANUAL:
-      return handleManualTarget(target, ctx);
     default:
       throw new Error(`未知 scope: ${target.scope}`);
   }
 }
 
-/**
- * 读取目标对应的源内容（优先 target.source，回退到 config.source）
- */
-function resolveContent(target, config) {
-  const sourcePath = target.source ?? config.source;
-  const raw = readSource(sourcePath);
-  return buildContent(config.banner, raw);
-}
+async function handleRulerTarget(target, ctx) {
+  if (!target.agent) throw new Error('ruler 目标缺少 agent 字段');
 
-async function handleProjectTarget(target, ctx) {
-  if (!target.relativePath) {
-    throw new Error('项目级目标缺少 relativePath');
+  if (!isRulerInstalled()) {
+    throw new Error(
+      'ruler 未安装。请先执行：\n\n    npm install -g @intellectronica/ruler\n',
+    );
   }
-  const content = resolveContent(target, ctx.config);
+
   const projectDir = await resolveProjectDir(ctx.rl, ctx.projectDirCache);
-  const outputAbs = path.join(projectDir, target.relativePath);
-  writeFile(outputAbs, content, ctx.isDryRun, target.name);
+
+  // 将最新 RULES.md 写入 .ruler/AGENTS.md（仅首次或规则变更时需要）
+  if (!ctx.rulerSourceSynced) {
+    syncRulerSource(ctx.config);
+    ctx.rulerSourceSynced = true;
+  }
+
+  const cmd = [
+    'ruler apply',
+    `--agents ${target.agent}`,
+    `--project-root "${projectDir}"`,
+    '--no-mcp',
+    '--no-backup',
+  ].join(' ');
+
+  if (ctx.isDryRun) {
+    logger.info(`[DRY] ${target.name}: ${cmd}`);
+    return;
+  }
+
+  logger.info(`正在执行: ${cmd}`);
+  execSync(cmd, { cwd: PROJECT_ROOT, stdio: 'inherit' });
+  logger.ok(`${target.name} -> ${projectDir}`);
 }
 
 function handleGlobalTarget(target, ctx) {
-  if (!target.output) {
-    throw new Error('全局目标缺少 output');
-  }
-  const content = resolveContent(target, ctx.config);
+  if (!target.output) throw new Error('全局目标缺少 output');
+  const sourcePath = target.source ?? ctx.config.source;
+  const raw = readSource(sourcePath);
+  const content = buildContent(ctx.config.banner, raw);
   const outputAbs = expandHome(target.output);
-  writeFile(outputAbs, content, ctx.isDryRun, target.name);
-}
-
-function handleManualTarget(target, ctx) {
-  logger.warn(`${target.name}`);
-  if (target.hint) logger.plain(`  提示：${target.hint}`);
-
-  const content = resolveContent(target, ctx.config);
-  // 分片大小：未配置或 ≤0 视为不分片
-  const chunkSize = Number.isFinite(target.chunkSize) && target.chunkSize > 0
-    ? target.chunkSize
-    : 0;
-  const chunks = chunkSize > 0 ? chunkContent(content, chunkSize) : [content];
 
   if (ctx.isDryRun) {
-    const detail = chunkSize > 0 ? `，分 ${chunks.length} 片（每片≤${chunkSize} 字符）` : '';
-    logger.info(`  [DRY] 将打印规则全文供手动粘贴${detail}`);
+    logger.info(`[DRY] ${target.name} -> ${outputAbs}`);
     return;
   }
 
-  logger.plain('');
-  chunks.forEach((chunk, i) => {
-    const header = chunks.length > 1
-      ? `────── 分片 ${i + 1}/${chunks.length}（${chunk.length} 字符）──────`
-      : '────────── 规则内容开始 ──────────';
-    logger.plain(header);
-    logger.plain(chunk);
-    logger.plain('──────────────────────────────────');
-    logger.plain('');
-  });
-}
-
-/**
- * 将文本按最大字符数分片。
- * 规则：
- *   1. 优先按行聚合，不跨行切割，保持 Markdown 可读性
- *   2. 单行超过 maxSize 时，对该行做硬切分（保证不超限）
- */
-function chunkContent(text, maxSize) {
-  if (maxSize <= 0) return [text];
-  const lines = text.split('\n');
-  const chunks = [];
-  let buffer = '';
-
-  // 冲刷当前缓冲区到 chunks
-  const flush = () => {
-    if (buffer.length > 0) {
-      chunks.push(buffer);
-      buffer = '';
-    }
-  };
-
-  for (const line of lines) {
-    // 单行超限：先冲刷缓冲，再对该行硬切
-    if (line.length > maxSize) {
-      flush();
-      for (let i = 0; i < line.length; i += maxSize) {
-        chunks.push(line.slice(i, i + maxSize));
-      }
-      continue;
-    }
-    // +1 是换行符
-    const addition = buffer.length === 0 ? line : `\n${line}`;
-    if (buffer.length + addition.length > maxSize) {
-      flush();
-      buffer = line;
-    } else {
-      buffer += addition;
-    }
-  }
-  flush();
-  return chunks;
-}
-
-function writeFile(outputAbs, content, isDryRun, name) {
-  if (isDryRun) {
-    logger.info(`[DRY] ${name} -> ${outputAbs}`);
-    return;
-  }
   ensureDir(outputAbs);
   fs.writeFileSync(outputAbs, content, 'utf-8');
-  logger.ok(`${name} -> ${outputAbs}`);
+  logger.ok(`${target.name} -> ${outputAbs}`);
 }
 
 // ============ CLI ============
 
 function parseArgs(argv) {
   const flags = new Set(argv.slice(2));
-  return {
-    isDryRun: flags.has(CliFlag.DRY_RUN),
-  };
+  return { isDryRun: flags.has(CliFlag.DRY_RUN) };
 }
 
 // ============ 主流程 ============
@@ -394,13 +306,9 @@ async function main() {
   let config;
   try {
     config = loadConfig();
-    // 预检：确保所有 target 的 source 文件都存在
-    const sourcePaths = new Set([config.source]);
-    config.targets.forEach((t) => { if (t.source) sourcePaths.add(t.source); });
-    sourcePaths.forEach((s) => readSource(s));
   } catch (err) {
     logger.error(err.message);
-    process.exit(err.message.includes('源文件') ? ExitCode.SOURCE_MISSING : ExitCode.CONFIG_ERROR);
+    process.exit(ExitCode.CONFIG_ERROR);
   }
 
   const rl = createPrompt();
@@ -422,18 +330,17 @@ async function main() {
     logger.info(`已选择 ${indices.length} 个目标${isDryRun ? '（dry-run）' : ''}`);
     logger.plain('');
 
-    // content 在 ctx 中改为按 target 懒加载，避免全局共用
     const ctx = {
       rl,
       config,
       isDryRun,
       projectDirCache: { value: null },
+      rulerSourceSynced: false, // .ruler/AGENTS.md 整次运行只同步一次
     };
 
     let successCount = 0;
     let failCount = 0;
 
-    // 逐个处理，单个失败不影响其他
     for (const idx of indices) {
       const target = config.targets[idx];
       try {

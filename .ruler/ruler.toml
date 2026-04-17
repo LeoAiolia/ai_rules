@@ -1,0 +1,8 @@
+# ruler 配置
+# 具体 agent 由 sync.js 通过 --agents 参数控制，无需在此配置 default_agents
+
+[gitignore]
+enabled = true
+
+[mcp]
+enabled = false
