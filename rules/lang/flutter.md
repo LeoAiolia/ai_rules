@@ -18,7 +18,8 @@
 ## 状态管理
 
 - **禁止滥用 `setState`**（仅用于纯本地 UI 状态）。
-- 全局 / 跨页状态**优先使用 Provider**，禁止在同一项目中混用多种状态管理方案。
+- 全局 / 跨页状态必须使用统一的状态管理方案（Provider / Riverpod / GetX 等任选其一）。
+- **同一项目内禁止混用多种方案**；具体选型在项目 `/init` 时由 `AGENTS.md` 锁定。
 - 禁止多处修改同一状态；状态变更必须经由 ViewModel / Controller。
 
 ## 性能与内存
@@ -38,14 +39,39 @@
 ## 网络
 
 - 禁止在 UI / 业务层写 HTTP。
-- 必须统一 API 层（默认 **Dio**；原生能力通过 **MethodChannel 桥接**）。
+- 必须统一 API 层（默认 **Dio**；原生能力通过 **MethodChannel 桥接**，见下文）。
 - 必须处理：**异常、超时、错误码**。
 - 统一拦截器：鉴权、超时、错误码、日志。
+
+## 资源路径（强制：禁止字符串拼接）
+
+- 图片、字体、JSON、Lottie 等资源路径**必须写成完整字面量**。
+- 禁止动态拼接（如 `'assets/icons/$name.png'`、`"ic_" + type + ".png"`）。
+- **原因**：Flutter 资源清理工具（`flutter_asset_cleaner` 等）通过静态字符串扫描判断资源引用，拼接路径会被误判为未使用而删除。
+- **正确做法**：集中定义在资源常量类 / 枚举中。
+
+```dart
+// 正确：完整字面量
+class AppAssets {
+  static const iconHome = 'assets/icons/ic_home.png';
+  static const iconMine = 'assets/icons/ic_mine.png';
+}
+
+// 错误：动态拼接
+String iconOf(String name) => 'assets/icons/ic_$name.png'; // 禁止
+```
+
+## UI 文案（强制：禁止分段拼接）
+
+- 界面上展示的字符串应**保持完整字面量**，便于出问题时全局搜索定位文件。
+- 禁止 `"订单号：" + orderId + "，金额：" + amount + "元"` 这类分段拼接。
+- 推荐使用整句模板（`'订单号：$orderId，金额：$amount 元'`），整句可被搜索命中。
+- 多语言场景必须走 i18n key，禁止把 UI 字符串分词拼装。
 
 ## 文本样式（强制）
 
 - 所有 `TextStyle` **必须显式设置 `color`**，禁止依赖默认色。
-- **原因**：深色模式下默认色会随主题反转，未显式设置会导致展示不一致。
+- **原因**：深色模式下默认色会随主题反转，未显式设置会导致展示不一致或不可见。
 - 颜色必须取自主题 / 设计 Token（如 `AppColors.textPrimary`），禁止硬编码 `Color(0xFF...)`。
 
 ```dart
@@ -92,6 +118,14 @@ factory UserModel.fromJson(JSON json) => UserModel(
 
 **数据流**：`JSON 字符串 → g_json → Model`
 
+## 原生桥接（含 iOS / Android）
+
+- 原生能力通过 `MethodChannel` 暴露，channel name 全局唯一并集中维护（如 `AppChannels` 常量类）。
+- iOS 侧入口集中在专用 `*Plugin.swift`，错误必须通过 `FlutterError` 回传，禁止吞异常。
+- Android 侧入口集中在专用 `*Plugin.kt`，错误必须通过 `MethodChannel.Result.error(...)` 回传。
+- Dart 侧必须包装为业务接口，调用方禁止直接持有 `MethodChannel`。
+- 大数据量传输优先 `BasicMessageChannel` / `EventChannel`，避免序列化阻塞主线程。
+
 ## Flutter 自检清单（追加到通用清单）
 
 - [ ] `build()` 是否包含业务逻辑
@@ -101,4 +135,6 @@ factory UserModel.fromJson(JSON json) => UserModel(
 - [ ] `TextStyle` 是否**显式设置 `color`**
 - [ ] `const` 是否可加未加
 - [ ] 列表是否使用 `builder`
+- [ ] 资源路径是否为**完整字面量**（禁止拼接）
+- [ ] UI 文案是否为**整句**（禁止分段拼接）
 - [ ] `dispose()` 是否释放资源（Stream / Controller / Animation）

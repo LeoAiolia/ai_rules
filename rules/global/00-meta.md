@@ -1,6 +1,6 @@
 # AI 编程助手规则 — 通用部分
 
-> **版本**：v2.1.0
+> **版本**：v2.2.0
 > **最后更新**：2026-05-07
 > **维护人**：run
 > **适用范围**：Claude Code / Codex / Trae
@@ -22,4 +22,5 @@
 |---|---|
 | 主要语言 | Dart / Swift |
 | 开发方向 | Flutter 跨平台（iOS 为主，兼顾 Android） |
-| 常用 IDE | Claude Code / VS Code / Xcode / Trae |
+| 常用 IDE / 编辑器 | VS Code / Xcode / Android Studio |
+| 常用 AI 工具 | Claude Code / Codex / Trae |

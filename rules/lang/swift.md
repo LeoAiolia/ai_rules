@@ -13,14 +13,14 @@
 
 ## 内存管理
 
-- Block / 闭包中**必须使用 `[weak self]`** 防止循环引用。
-- 使用 `[unowned self]` 前必须确保生命周期，否则一律用 `[weak self]`。
+- 闭包中**必须使用 `[weak self]`** 防止循环引用。
+- 使用 `[unowned self]` 前必须确保生命周期严格短于 self，否则一律用 `[weak self]`。
 
 ## 线程
 
 - UI 更新必须在**主线程**（`DispatchQueue.main` / `@MainActor`）。
 - 耗时操作必须派发到后台队列。
-- 网络请求使用 **`async/await`**（Swift Concurrency）。
+- 网络请求 / IO 优先使用 **`async/await`**（Swift Concurrency），避免裸 `completion handler` 嵌套。
 
 ## 框架与架构
 
@@ -33,15 +33,21 @@
 
 - 敏感信息（Token、密码、证书）存 **Keychain**，禁止存 UserDefaults / 明文文件。
 - 轻量非敏感数据用 **UserDefaults**。
+- 结构化数据优先 **CoreData**（已有项目）或 **GRDB / SQLite**（新项目按需选型）。
 
-## 与 Flutter 桥接
+## 包管理
 
-- 原生能力通过 `FlutterMethodChannel` 暴露，入口集中在专用 `*Plugin.swift`。
-- 错误必须通过 `FlutterError` 回传，禁止吞异常。
+- 优先 **SPM**（Swift Package Manager）；已有 CocoaPods 工程保持现状，不做无收益迁移。
+- 引入第三方依赖前必须评估：维护活跃度、License、包大小、是否与现有依赖冲突。
+
+> 与 Flutter 桥接的相关规则见 `flutter.md` 的「原生桥接」一节。
 
 ## Swift 自检清单（追加到通用清单）
 
 - [ ] 是否 `let` 优先（不必要的 `var` 改为 `let`）
+- [ ] 是否使用了 `!` 强解 / `as!` 强转
 - [ ] 闭包是否 `[weak self]`
-- [ ] UI 更新是否在主线程
-- [ ] 是否用了 `!` 强解 / `as!` 强转
+- [ ] UI 更新是否在主线程（`@MainActor` / `DispatchQueue.main`）
+- [ ] 异步 IO 是否使用 `async/await` 而非回调嵌套
+- [ ] 敏感信息是否走 **Keychain**（不在 UserDefaults / 明文）
+- [ ] SafeArea 是否正确适配（无硬编码状态栏高度）

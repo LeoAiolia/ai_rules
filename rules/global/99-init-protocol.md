@@ -22,11 +22,23 @@
 
 ### 1. 识别项目主语言
 
-- 存在 `pubspec.yaml` → **Flutter**
-- 存在 `Podfile` 或 `*.xcodeproj` 或 `Package.swift` → **iOS / Swift**
-- 存在 `build.gradle` 或 `settings.gradle` → **Android**
+按以下规则匹配（顺序无关，可同时命中多个）：
 
-多语言项目按需识别多个。
+| 平台 | 触发条件 |
+|---|---|
+| **Flutter** | 存在 `pubspec.yaml`，且其中包含 `flutter:` 字段或 `dependencies: flutter:` |
+| **iOS App** | 存在 `*.xcodeproj` / `*.xcworkspace` / `Podfile`（**纯 iOS App 项目**） |
+| **Android** | 存在 `build.gradle` / `build.gradle.kts` / `settings.gradle*`，且有 `android/` 目录或 `applicationId` 配置 |
+| **React Native** | 存在 `package.json` 且 `dependencies` 含 `react-native`，并有 `ios/` + `android/` 目录 |
+
+**不要识别**为目标平台的情况：
+
+- 仅有 `Package.swift` 且无 `*.xcodeproj` → 这是 **Swift Package**，不是 iOS App，不要注入 iOS 规则。
+- Flutter 项目自带的 `ios/` 与 `android/` 子目录 → 已被 Flutter 覆盖，**不**额外注入 Swift / Android 规则（除非用户明确说要做原生定制）。
+
+**多平台项目**：按上表顺序追加多个文件，每个之间用 `---` 分隔。
+
+**无法识别 / 边界情况**：直接询问用户当前项目的主平台，由用户指定后再注入；不要猜。
 
 ### 2. 拉取并追加平台规则
 
