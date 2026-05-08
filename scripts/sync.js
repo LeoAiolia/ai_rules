@@ -119,7 +119,7 @@ function isRulerInstalled() {
 }
 
 /**
- * 将 RULES.md 内容写入 .ruler/AGENTS.md，作为 ruler 的规则源
+ * 将 rules/full.md 内容写入 .ruler/AGENTS.md，作为 ruler 的规则源
  */
 function syncRulerSource(config) {
   const raw = readSource(config.source);
@@ -250,7 +250,7 @@ async function handleRulerTarget(target, ctx) {
 
   const projectDir = await resolveProjectDir(ctx.rl, ctx.projectDirCache);
 
-  // 将最新 RULES.md 写入 .ruler/AGENTS.md（仅首次或规则变更时需要）
+  // 将最新 rules/full.md 写入 .ruler/AGENTS.md（仅首次或规则变更时需要）
   if (!ctx.rulerSourceSynced) {
     syncRulerSource(ctx.config);
     ctx.rulerSourceSynced = true;

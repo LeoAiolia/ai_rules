@@ -3,7 +3,8 @@
     "allow": [
       "Bash(node scripts/sync.js --dry)",
       "Bash(node scripts/sync.js)",
-      "WebSearch"
+      "WebSearch",
+      "Bash(node -c scripts/sync.js)"
     ]
   }
 }

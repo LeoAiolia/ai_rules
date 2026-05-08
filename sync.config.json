@@ -1,5 +1,5 @@
 {
-  "source": "RULES.md",
+  "source": "rules/full.md",
   "banner": "",
   "targets": [
     {
@@ -25,13 +25,13 @@
     {
       "name": "Trae (全局)",
       "scope": "global",
-      "source": "RULES_COMPACT.md",
+      "source": "rules/compact.md",
       "output": "~/.trae/user_rules/rules.md"
     },
     {
       "name": "Trae CN (全局)",
       "scope": "global",
-      "source": "RULES_COMPACT.md",
+      "source": "rules/compact.md",
       "output": "~/.trae-cn/user_rules/rules.md"
     }
   ]
