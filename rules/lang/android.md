@@ -4,10 +4,9 @@
 - 最低支持 **minSdk 29（Android 10）**，目标 **targetSdk 34**。
 - 遵循 Material Design 规范。
 
-## 架构
+## 架构（通用分层规范见 `20-common-code.md` 架构分层）
 
 - 采用 **MVVM + Jetpack**：`ViewModel` + `StateFlow` / `LiveData`。
-- 业务层用 **Repository** 隔离数据来源；UI 禁止直连 API。
 - 依赖注入使用 **Hilt**（首选）；新增类必须支持 DI 以便测试。
 
 ## UI

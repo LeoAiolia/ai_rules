@@ -30,18 +30,10 @@
 - 图片加载须有缓存与占位。
 - **避免内存泄漏**：`StreamSubscription`、`AnimationController`、`TextEditingController` 等必须在 `dispose()` 中释放。
 
-## 架构
+## 网络（通用分层规范见 `20-common-code.md` 架构分层）
 
-- 分层：**UI / 业务 / 数据 / 网络**。
-- UI **禁止直接调用 API**。
-- 所有数据必须通过 **Repository**。
-
-## 网络
-
-- 禁止在 UI / 业务层写 HTTP。
-- 必须统一 API 层（默认 **Dio**；原生能力通过 **MethodChannel 桥接**，见下文）。
-- 必须处理：**异常、超时、错误码**。
-- 统一拦截器：鉴权、超时、错误码、日志。
+- HTTP 客户端默认使用 **Dio**；原生能力通过 **MethodChannel 桥接**（见下文）。
+- 统一拦截器需覆盖：鉴权、超时、错误码、日志。
 
 ## 资源路径（强制：禁止字符串拼接）
 
