@@ -2,33 +2,23 @@
   "source": "rules/global",
   "targets": [
     {
-      "name": "Claude Code",
-      "scope": "ruler",
-      "agent": "claude"
+      "name": "Claude Code (全局)",
+      "scope": "single",
+      "output": "~/.claude/CLAUDE.md"
     },
     {
-      "name": "Codex",
-      "scope": "ruler",
-      "agent": "codex"
-    },
-    {
-      "name": "Cline",
-      "scope": "ruler",
-      "agent": "cline"
-    },
-    {
-      "name": "Antigravity",
-      "scope": "ruler",
-      "agent": "antigravity"
+      "name": "Codex (全局)",
+      "scope": "single",
+      "output": "~/.codex/AGENTS.md"
     },
     {
       "name": "Trae (全局)",
-      "scope": "global",
+      "scope": "multi",
       "output": "~/.trae/user_rules"
     },
     {
       "name": "Trae CN (全局)",
-      "scope": "global",
+      "scope": "multi",
       "output": "~/.trae-cn/user_rules"
     }
   ]

@@ -4,8 +4,8 @@
  *
  * 模型：
  *   - 源：rules/global/ 下的 NN-name.md 多文件
- *   - ruler 目标：复制源文件到 .ruler/，由 ruler 拼接并写入下游项目
- *   - 全局目标（Trae/Trae-CN）：复制源文件到目标目录，作为多条规则加载
+ *   - single 目标：按 NN- 顺序拼接为一个文件，写到指定路径
+ *   - multi  目标：把多文件原样复制到指定目录（Trae）
  *
  * 用法：
  *   node scripts/sync.js            # 交互式菜单
@@ -16,13 +16,12 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 const readline = require('readline');
-const { execSync } = require('child_process');
 
 // ============ 枚举 / 常量 ============
 
 const TargetScope = Object.freeze({
-  RULER: 'ruler',
-  GLOBAL: 'global',
+  SINGLE: 'single',
+  MULTI: 'multi',
 });
 
 const CliFlag = Object.freeze({
@@ -37,11 +36,16 @@ const ExitCode = Object.freeze({
 
 const PROJECT_ROOT = path.resolve(__dirname, '..');
 const CONFIG_PATH = path.join(PROJECT_ROOT, 'sync.config.json');
-const RULER_DIR = path.join(PROJECT_ROOT, '.ruler');
 
 // 规则文件命名约定：两位数字前缀 + 短横线 + 名称 + .md
 // 用于：从源目录筛选有效规则文件 / 在目标目录清理同模式旧文件（不误伤其他文件）
 const RULE_FILE_PATTERN = /^\d{2}-[\w-]+\.md$/;
+
+// 规则文件中可能引用本仓库内的资源（如平台规则路径），用占位符在分发时替换为实际绝对路径
+// 这样下游工具读到的是真实可用的路径，而不是硬编码到某个用户机器上的路径
+const TEMPLATE_VARS = Object.freeze({
+  AI_RULES_REPO: PROJECT_ROOT,
+});
 
 // ============ 日志 ============
 
@@ -103,25 +107,6 @@ function ensureDir(dirPath) {
   }
 }
 
-/**
- * 删除目标目录下匹配规则文件命名模式的旧文件，避免源端删除文件后下游残留
- * 不影响 ruler.toml、用户其他文件
- */
-function clearStaleRuleFiles(dir) {
-  if (!fs.existsSync(dir)) return;
-  for (const name of fs.readdirSync(dir)) {
-    if (RULE_FILE_PATTERN.test(name)) {
-      fs.unlinkSync(path.join(dir, name));
-    }
-  }
-}
-
-// 规则文件中可能引用本仓库内的资源（如平台规则路径），用占位符在分发时替换为实际绝对路径
-// 这样下游工具读到的是真实可用的路径，而不是硬编码到某个用户机器上的路径
-const TEMPLATE_VARS = Object.freeze({
-  AI_RULES_REPO: PROJECT_ROOT,
-});
-
 function renderTemplate(content) {
   let rendered = content;
   for (const [key, value] of Object.entries(TEMPLATE_VARS)) {
@@ -130,32 +115,21 @@ function renderTemplate(content) {
   return rendered;
 }
 
-function copyRuleFiles(sourceFiles, targetDir) {
-  ensureDir(targetDir);
-  for (const { name, absPath } of sourceFiles) {
-    const rendered = renderTemplate(fs.readFileSync(absPath, 'utf-8'));
-    fs.writeFileSync(path.join(targetDir, name), rendered);
-  }
-}
-
-// ============ ruler 工具 ============
-
-function isRulerInstalled() {
-  try {
-    execSync('ruler --version', { stdio: 'ignore' });
-    return true;
-  } catch {
-    return false;
-  }
+function readRendered({ absPath }) {
+  return renderTemplate(fs.readFileSync(absPath, 'utf-8'));
 }
 
 /**
- * 把通用规则文件刷新到 .ruler/，让 ruler 自己拼接并分发给下游
+ * 删除目标目录下匹配规则文件命名模式的旧文件，避免源端删除文件后下游残留
+ * 不影响目标目录里其他用户文件
  */
-function refreshRulerSource(sourceFiles) {
-  ensureDir(RULER_DIR);
-  clearStaleRuleFiles(RULER_DIR);
-  copyRuleFiles(sourceFiles, RULER_DIR);
+function clearStaleRuleFiles(dir) {
+  if (!fs.existsSync(dir)) return;
+  for (const name of fs.readdirSync(dir)) {
+    if (RULE_FILE_PATTERN.test(name)) {
+      fs.unlinkSync(path.join(dir, name));
+    }
+  }
 }
 
 // ============ 交互 ============
@@ -177,28 +151,39 @@ function parseSelection(input, totalCount) {
     return Array.from({ length: totalCount }, (_, i) => i);
   }
   const selected = new Set();
+  const invalid = [];
   const tokens = trimmed.split(/[\s,]+/).filter(Boolean);
   for (const token of tokens) {
     if (token.includes('-')) {
       const [start, end] = token.split('-').map((n) => parseInt(n, 10));
-      if (Number.isNaN(start) || Number.isNaN(end)) continue;
+      if (Number.isNaN(start) || Number.isNaN(end)) {
+        invalid.push(token);
+        continue;
+      }
       for (let i = start; i <= end; i += 1) {
         if (i >= 1 && i <= totalCount) selected.add(i - 1);
       }
     } else {
       const idx = parseInt(token, 10);
-      if (!Number.isNaN(idx) && idx >= 1 && idx <= totalCount) selected.add(idx - 1);
+      if (Number.isNaN(idx) || idx < 1 || idx > totalCount) {
+        invalid.push(token);
+      } else {
+        selected.add(idx - 1);
+      }
     }
+  }
+  if (invalid.length > 0) {
+    logger.warn(`忽略无效输入: ${invalid.join(', ')}`);
   }
   return Array.from(selected).sort((a, b) => a - b);
 }
 
 function describeScope(target) {
   switch (target.scope) {
-    case TargetScope.RULER:
-      return `[ruler → agent: ${target.agent}]`;
-    case TargetScope.GLOBAL:
-      return `[全局 → ${target.output}]`;
+    case TargetScope.SINGLE:
+      return `[单文件 → ${target.output}]`;
+    case TargetScope.MULTI:
+      return `[多文件 → ${target.output}/]`;
     default:
       return '[未知作用域]';
   }
@@ -214,72 +199,41 @@ function printMenu(targets) {
   logger.plain('输入示例：1,3  或  1-3  或  a（全部）  或  q（退出）');
 }
 
-async function resolveProjectDir(rl, cache) {
-  if (cache.value) {
-    const reuse = await askQuestion(
-      rl,
-      `是否复用上次的项目目录？\n  ${cache.value}\n  [Y/n]: `,
-    );
-    if (reuse === '' || reuse.toLowerCase() === 'y') return cache.value;
-  }
-  const input = await askQuestion(rl, '请输入项目根目录绝对路径: ');
-  if (!input) throw new Error('项目目录不能为空');
-  const expanded = expandHome(input);
-  const absolute = path.isAbsolute(expanded) ? expanded : path.resolve(process.cwd(), expanded);
-  if (!fs.existsSync(absolute)) throw new Error(`目录不存在: ${absolute}`);
-  if (!fs.statSync(absolute).isDirectory()) throw new Error(`路径不是目录: ${absolute}`);
-  cache.value = absolute;
-  return absolute;
-}
-
 // ============ 目标分发 ============
 
-async function handleTarget(target, ctx) {
+function handleTarget(target, ctx) {
   switch (target.scope) {
-    case TargetScope.RULER:
-      return handleRulerTarget(target, ctx);
-    case TargetScope.GLOBAL:
-      return handleGlobalTarget(target, ctx);
+    case TargetScope.SINGLE:
+      return handleSingleTarget(target, ctx);
+    case TargetScope.MULTI:
+      return handleMultiTarget(target, ctx);
     default:
       throw new Error(`未知 scope: ${target.scope}`);
   }
 }
 
-async function handleRulerTarget(target, ctx) {
-  if (!target.agent) throw new Error('ruler 目标缺少 agent 字段');
-  if (!isRulerInstalled()) {
-    throw new Error(
-      'ruler 未安装。请先执行：\n\n    npm install -g @intellectronica/ruler\n',
-    );
-  }
+function buildBundle(sourceFiles) {
+  const header = '<!-- 由 ai_rules/scripts/sync.js 自动生成，勿直接编辑；改源文件请编辑 rules/global/ -->\n\n';
+  const body = sourceFiles.map((f) => readRendered(f).trimEnd()).join('\n\n');
+  return `${header}${body}\n`;
+}
 
-  const projectDir = await resolveProjectDir(ctx.rl, ctx.projectDirCache);
-
-  if (!ctx.rulerSourceSynced) {
-    if (!ctx.isDryRun) refreshRulerSource(ctx.sourceFiles);
-    ctx.rulerSourceSynced = true;
-  }
-
-  const cmd = [
-    'ruler apply',
-    `--agents ${target.agent}`,
-    `--project-root "${projectDir}"`,
-    '--no-mcp',
-    '--no-backup',
-  ].join(' ');
+function handleSingleTarget(target, ctx) {
+  if (!target.output) throw new Error('single 目标缺少 output');
+  const outputAbs = expandHome(target.output);
 
   if (ctx.isDryRun) {
-    logger.info(`[DRY] ${target.name}: ${cmd}`);
+    logger.info(`[DRY] ${target.name} -> ${outputAbs}（拼接 ${ctx.sourceFiles.length} 个源文件）`);
     return;
   }
 
-  logger.info(`正在执行: ${cmd}`);
-  execSync(cmd, { cwd: PROJECT_ROOT, stdio: 'inherit' });
-  logger.ok(`${target.name} -> ${projectDir}`);
+  ensureDir(path.dirname(outputAbs));
+  fs.writeFileSync(outputAbs, buildBundle(ctx.sourceFiles));
+  logger.ok(`${target.name} -> ${outputAbs}`);
 }
 
-function handleGlobalTarget(target, ctx) {
-  if (!target.output) throw new Error('全局目标缺少 output');
+function handleMultiTarget(target, ctx) {
+  if (!target.output) throw new Error('multi 目标缺少 output');
   const outputAbs = expandHome(target.output);
   const fileCount = ctx.sourceFiles.length;
 
@@ -290,7 +244,9 @@ function handleGlobalTarget(target, ctx) {
 
   ensureDir(outputAbs);
   clearStaleRuleFiles(outputAbs);
-  copyRuleFiles(ctx.sourceFiles, outputAbs);
+  for (const file of ctx.sourceFiles) {
+    fs.writeFileSync(path.join(outputAbs, file.name), readRendered(file));
+  }
   logger.ok(`${target.name} -> ${outputAbs} (${fileCount} 个文件)`);
 }
 
@@ -334,14 +290,7 @@ async function main() {
     logger.info(`源文件 (${sourceFiles.length}): ${sourceFiles.map((f) => f.name).join(', ')}`);
     logger.plain('');
 
-    const ctx = {
-      rl,
-      config,
-      sourceFiles,
-      isDryRun,
-      projectDirCache: { value: null },
-      rulerSourceSynced: false,
-    };
+    const ctx = { sourceFiles, isDryRun };
 
     let successCount = 0;
     let failCount = 0;
@@ -349,8 +298,7 @@ async function main() {
     for (const idx of indices) {
       const target = config.targets[idx];
       try {
-        // eslint-disable-next-line no-await-in-loop
-        await handleTarget(target, ctx);
+        handleTarget(target, ctx);
         successCount += 1;
       } catch (err) {
         logger.error(`${target.name} 失败: ${err.message}`);

@@ -3,7 +3,3 @@
 
 # Node
 node_modules/
-
-# ruler 同步产物：sync.js 每次运行会重新生成
-.ruler/*.md
-!.ruler/ruler.toml
