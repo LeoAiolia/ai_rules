@@ -1,0 +1,3 @@
+# 由 scripts/sync.js 从 rules/global/ 复制生成，每次同步前清空——不进 git
+[0-9][0-9]-*.md
+AGENTS.md

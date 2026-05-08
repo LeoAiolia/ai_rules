@@ -2,10 +2,10 @@
 /**
  * 规则同步脚本（交互式）
  *
- * 功能：
- *   1. 交互式菜单，用户选择要同步的目标
- *   2. ruler 目标：检查 ruler 是否已安装，然后调用 ruler apply 写入目标项目
- *   3. 全局目标（Trae/Trae-CN）：将精简规则写入全局路径
+ * 模型：
+ *   - 源：rules/global/ 下的 NN-name.md 多文件
+ *   - ruler 目标：复制源文件到 .ruler/，由 ruler 拼接并写入下游项目
+ *   - 全局目标（Trae/Trae-CN）：复制源文件到目标目录，作为多条规则加载
  *
  * 用法：
  *   node scripts/sync.js            # 交互式菜单
@@ -21,8 +21,8 @@ const { execSync } = require('child_process');
 // ============ 枚举 / 常量 ============
 
 const TargetScope = Object.freeze({
-  RULER: 'ruler',   // 由 ruler 管理，调用 ruler apply
-  GLOBAL: 'global', // 直接写入全局固定路径
+  RULER: 'ruler',
+  GLOBAL: 'global',
 });
 
 const CliFlag = Object.freeze({
@@ -32,13 +32,16 @@ const CliFlag = Object.freeze({
 const ExitCode = Object.freeze({
   SUCCESS: 0,
   CONFIG_ERROR: 1,
-  SOURCE_MISSING: 2,
   USER_ABORT: 3,
 });
 
 const PROJECT_ROOT = path.resolve(__dirname, '..');
 const CONFIG_PATH = path.join(PROJECT_ROOT, 'sync.config.json');
-const RULER_AGENTS_PATH = path.join(PROJECT_ROOT, '.ruler', 'AGENTS.md');
+const RULER_DIR = path.join(PROJECT_ROOT, '.ruler');
+
+// 规则文件命名约定：两位数字前缀 + 短横线 + 名称 + .md
+// 用于：从源目录筛选有效规则文件 / 在目标目录清理同模式旧文件（不误伤其他文件）
+const RULE_FILE_PATTERN = /^\d{2}-[\w-]+\.md$/;
 
 // ============ 日志 ============
 
@@ -69,46 +72,59 @@ function loadConfig() {
   return config;
 }
 
-function readSource(sourceRelPath) {
-  const sourceAbs = path.resolve(PROJECT_ROOT, sourceRelPath);
-  if (!fs.existsSync(sourceAbs)) {
-    throw new Error(`源文件不存在: ${sourceAbs}`);
+function listSourceFiles(sourceDir) {
+  const abs = path.resolve(PROJECT_ROOT, sourceDir);
+  if (!fs.existsSync(abs) || !fs.statSync(abs).isDirectory()) {
+    throw new Error(`源目录不存在或不是目录: ${abs}`);
   }
-  return fs.readFileSync(sourceAbs, 'utf-8');
+  const names = fs
+    .readdirSync(abs)
+    .filter((f) => RULE_FILE_PATTERN.test(f))
+    .sort();
+  if (names.length === 0) {
+    throw new Error(`源目录中没有规则文件 (期望命名: NN-name.md): ${abs}`);
+  }
+  return names.map((name) => ({ name, absPath: path.join(abs, name) }));
+}
+
+// ============ 文件系统工具 ============
+
+function expandHome(rawPath) {
+  if (!rawPath) return rawPath;
+  if (rawPath.startsWith('~')) {
+    return path.join(os.homedir(), rawPath.slice(1));
+  }
+  return rawPath;
+}
+
+function ensureDir(dirPath) {
+  if (!fs.existsSync(dirPath)) {
+    fs.mkdirSync(dirPath, { recursive: true });
+  }
 }
 
 /**
- * 移除变更日志章节（AI 不需要）
+ * 删除目标目录下匹配规则文件命名模式的旧文件，避免源端删除文件后下游残留
+ * 不影响 ruler.toml、用户其他文件
  */
-function stripChangelog(content) {
-  const lines = content.split('\n');
-  const headingPattern = /^##\s+(\d+\.\s+)?变更日志\s*$/;
-  const idx = lines.findIndex((line) => headingPattern.test(line));
-  if (idx === -1) return content;
-
-  let end = idx;
-  while (end > 0) {
-    const prev = lines[end - 1].trim();
-    if (prev === '' || prev === '---') {
-      end -= 1;
-    } else {
-      break;
+function clearStaleRuleFiles(dir) {
+  if (!fs.existsSync(dir)) return;
+  for (const name of fs.readdirSync(dir)) {
+    if (RULE_FILE_PATTERN.test(name)) {
+      fs.unlinkSync(path.join(dir, name));
     }
   }
-  return `${lines.slice(0, end).join('\n').trimEnd()}\n`;
 }
 
-function buildContent(banner, sourceContent) {
-  const stripped = stripChangelog(sourceContent);
-  const safeBanner = (banner ?? '').trim();
-  return safeBanner.length > 0 ? `${safeBanner}\n\n${stripped}` : stripped;
+function copyRuleFiles(sourceFiles, targetDir) {
+  ensureDir(targetDir);
+  for (const { name, absPath } of sourceFiles) {
+    fs.copyFileSync(absPath, path.join(targetDir, name));
+  }
 }
 
 // ============ ruler 工具 ============
 
-/**
- * 检测 ruler 是否已安装
- */
 function isRulerInstalled() {
   try {
     execSync('ruler --version', { stdio: 'ignore' });
@@ -119,32 +135,15 @@ function isRulerInstalled() {
 }
 
 /**
- * 将 rules/full.md 内容写入 .ruler/AGENTS.md，作为 ruler 的规则源
+ * 把通用规则文件刷新到 .ruler/，让 ruler 自己拼接并分发给下游
  */
-function syncRulerSource(config) {
-  const raw = readSource(config.source);
-  const content = stripChangelog(raw);
-  fs.writeFileSync(RULER_AGENTS_PATH, content, 'utf-8');
+function refreshRulerSource(sourceFiles) {
+  ensureDir(RULER_DIR);
+  clearStaleRuleFiles(RULER_DIR);
+  copyRuleFiles(sourceFiles, RULER_DIR);
 }
 
-// ============ 路径工具 ============
-
-function expandHome(rawPath) {
-  if (!rawPath) return rawPath;
-  if (rawPath.startsWith('~')) {
-    return path.join(os.homedir(), rawPath.slice(1));
-  }
-  return rawPath;
-}
-
-function ensureDir(filePath) {
-  const dir = path.dirname(filePath);
-  if (!fs.existsSync(dir)) {
-    fs.mkdirSync(dir, { recursive: true });
-  }
-}
-
-// ============ 交互工具 ============
+// ============ 交互 ============
 
 function createPrompt() {
   return readline.createInterface({ input: process.stdin, output: process.stdout });
@@ -156,9 +155,6 @@ function askQuestion(rl, question) {
   });
 }
 
-/**
- * 解析选择字符串：a=全部，q=退出，1,3 或 1-3 为具体选择
- */
 function parseSelection(input, totalCount) {
   const trimmed = input.trim().toLowerCase();
   if (trimmed === 'q' || trimmed === 'quit' || trimmed === 'exit') return null;
@@ -182,31 +178,26 @@ function parseSelection(input, totalCount) {
   return Array.from(selected).sort((a, b) => a - b);
 }
 
-// ============ 菜单 ============
-
-function describeScope(target, defaultSource) {
-  const srcTag = target.source ? ` (${target.source})` : '';
+function describeScope(target) {
   switch (target.scope) {
     case TargetScope.RULER:
       return `[ruler → agent: ${target.agent}]`;
     case TargetScope.GLOBAL:
-      return `[全局 → ${target.output}${srcTag}]`;
+      return `[全局 → ${target.output}]`;
     default:
       return '[未知作用域]';
   }
 }
 
-function printMenu(targets, defaultSource) {
+function printMenu(targets) {
   logger.plain('');
   logger.plain('==== 可同步的目标 ====');
   targets.forEach((t, i) => {
-    logger.plain(`  ${String(i + 1).padStart(2)}. ${t.name}  ${describeScope(t, defaultSource)}`);
+    logger.plain(`  ${String(i + 1).padStart(2)}. ${t.name}  ${describeScope(t)}`);
   });
   logger.plain('');
   logger.plain('输入示例：1,3  或  1-3  或  a（全部）  或  q（退出）');
 }
-
-// ============ 项目目录缓存 ============
 
 async function resolveProjectDir(rl, cache) {
   if (cache.value) {
@@ -241,7 +232,6 @@ async function handleTarget(target, ctx) {
 
 async function handleRulerTarget(target, ctx) {
   if (!target.agent) throw new Error('ruler 目标缺少 agent 字段');
-
   if (!isRulerInstalled()) {
     throw new Error(
       'ruler 未安装。请先执行：\n\n    npm install -g @intellectronica/ruler\n',
@@ -250,9 +240,8 @@ async function handleRulerTarget(target, ctx) {
 
   const projectDir = await resolveProjectDir(ctx.rl, ctx.projectDirCache);
 
-  // 将最新 rules/full.md 写入 .ruler/AGENTS.md（仅首次或规则变更时需要）
   if (!ctx.rulerSourceSynced) {
-    syncRulerSource(ctx.config);
+    if (!ctx.isDryRun) refreshRulerSource(ctx.sourceFiles);
     ctx.rulerSourceSynced = true;
   }
 
@@ -276,19 +265,18 @@ async function handleRulerTarget(target, ctx) {
 
 function handleGlobalTarget(target, ctx) {
   if (!target.output) throw new Error('全局目标缺少 output');
-  const sourcePath = target.source ?? ctx.config.source;
-  const raw = readSource(sourcePath);
-  const content = buildContent(ctx.config.banner, raw);
   const outputAbs = expandHome(target.output);
+  const fileCount = ctx.sourceFiles.length;
 
   if (ctx.isDryRun) {
-    logger.info(`[DRY] ${target.name} -> ${outputAbs}`);
+    logger.info(`[DRY] ${target.name} -> ${outputAbs}/ (${fileCount} 个文件)`);
     return;
   }
 
   ensureDir(outputAbs);
-  fs.writeFileSync(outputAbs, content, 'utf-8');
-  logger.ok(`${target.name} -> ${outputAbs}`);
+  clearStaleRuleFiles(outputAbs);
+  copyRuleFiles(ctx.sourceFiles, outputAbs);
+  logger.ok(`${target.name} -> ${outputAbs} (${fileCount} 个文件)`);
 }
 
 // ============ CLI ============
@@ -298,14 +286,14 @@ function parseArgs(argv) {
   return { isDryRun: flags.has(CliFlag.DRY_RUN) };
 }
 
-// ============ 主流程 ============
-
 async function main() {
   const { isDryRun } = parseArgs(process.argv);
 
   let config;
+  let sourceFiles;
   try {
     config = loadConfig();
+    sourceFiles = listSourceFiles(config.source);
   } catch (err) {
     logger.error(err.message);
     process.exit(ExitCode.CONFIG_ERROR);
@@ -314,7 +302,7 @@ async function main() {
   const rl = createPrompt();
 
   try {
-    printMenu(config.targets, config.source);
+    printMenu(config.targets);
     const answer = await askQuestion(rl, '请选择要同步的目标: ');
     const indices = parseSelection(answer, config.targets.length);
 
@@ -328,14 +316,16 @@ async function main() {
     }
 
     logger.info(`已选择 ${indices.length} 个目标${isDryRun ? '（dry-run）' : ''}`);
+    logger.info(`源文件 (${sourceFiles.length}): ${sourceFiles.map((f) => f.name).join(', ')}`);
     logger.plain('');
 
     const ctx = {
       rl,
       config,
+      sourceFiles,
       isDryRun,
       projectDirCache: { value: null },
-      rulerSourceSynced: false, // .ruler/AGENTS.md 整次运行只同步一次
+      rulerSourceSynced: false,
     };
 
     let successCount = 0;

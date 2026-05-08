@@ -1,6 +1,5 @@
 {
-  "source": "rules/full.md",
-  "banner": "",
+  "source": "rules/global",
   "targets": [
     {
       "name": "Claude Code",
@@ -25,14 +24,12 @@
     {
       "name": "Trae (全局)",
       "scope": "global",
-      "source": "rules/compact.md",
-      "output": "~/.trae/user_rules/rules.md"
+      "output": "~/.trae/user_rules"
     },
     {
       "name": "Trae CN (全局)",
       "scope": "global",
-      "source": "rules/compact.md",
-      "output": "~/.trae-cn/user_rules/rules.md"
+      "output": "~/.trae-cn/user_rules"
     }
   ]
 }
