@@ -33,9 +33,11 @@
 
 | 平台 | 源文件路径 |
 |---|---|
-| Flutter | `~/Documents/yxr/ai_rules/rules/lang/flutter.md` |
-| iOS | `~/Documents/yxr/ai_rules/rules/lang/swift.md` |
-| Android | `~/Documents/yxr/ai_rules/rules/lang/android.md` |
+| Flutter | `${AI_RULES_REPO}/rules/lang/flutter.md` |
+| iOS | `${AI_RULES_REPO}/rules/lang/swift.md` |
+| Android | `${AI_RULES_REPO}/rules/lang/android.md` |
+
+> `${AI_RULES_REPO}` 在 sync 时会被替换为本仓库的实际绝对路径，下游工具读到的是真实路径。
 
 多平台项目按顺序追加多个文件，每个之间用 `---` 分隔。
 

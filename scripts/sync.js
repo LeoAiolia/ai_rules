@@ -116,10 +116,25 @@ function clearStaleRuleFiles(dir) {
   }
 }
 
+// 规则文件中可能引用本仓库内的资源（如平台规则路径），用占位符在分发时替换为实际绝对路径
+// 这样下游工具读到的是真实可用的路径，而不是硬编码到某个用户机器上的路径
+const TEMPLATE_VARS = Object.freeze({
+  AI_RULES_REPO: PROJECT_ROOT,
+});
+
+function renderTemplate(content) {
+  let rendered = content;
+  for (const [key, value] of Object.entries(TEMPLATE_VARS)) {
+    rendered = rendered.split(`\${${key}}`).join(value);
+  }
+  return rendered;
+}
+
 function copyRuleFiles(sourceFiles, targetDir) {
   ensureDir(targetDir);
   for (const { name, absPath } of sourceFiles) {
-    fs.copyFileSync(absPath, path.join(targetDir, name));
+    const rendered = renderTemplate(fs.readFileSync(absPath, 'utf-8'));
+    fs.writeFileSync(path.join(targetDir, name), rendered);
   }
 }
 
