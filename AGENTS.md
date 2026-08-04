@@ -64,13 +64,13 @@ CLAUDE.md  AGENTS.md  user_rules/     并 inline 到该项目的 AGENTS.md
 1. **改通用规则**：编辑 `rules/global/NN-*.md`，更新 `00-meta.md` 顶部 `版本` / `最后更新`，在 `rules/CHANGELOG.md` 加一条。
 2. **改平台规则**：编辑 `rules/lang/<语言>.md`。这部分不参与 sync——已 init 过的旧项目要重跑 `/init` 才能拿到更新。
 3. **新增平台**：`rules/lang/<新语言>.md` 加文件 + 在 `rules/global/99-init-protocol.md` 的语言识别表里加一行。
-4. **新增通用规则文件**：在 `rules/global/` 加 `NN-*.md`，前缀决定拼接顺序（在已有数字间留间隙：00→10→20→60→90→99 这种）。
+4. **新增通用规则文件**：在 `rules/global/` 加 `NN-*.md`，前缀决定拼接顺序（在已有数字间留间隙：00→10→20→90→99 这种）。
 5. `npm run sync:dry` 预演 → `npm run sync` 分发。
 
 ---
 
 ## 注意事项
 
-- 修改 `scripts/sync.js` 时遵循 `rules/global/20-common-code.md` 的通用代码规范（枚举用 `switch`、函数 ≤50 行、单一职责等）。
+- 修改 `scripts/sync.js` 时遵循 `rules/global/20-common-code.md` 的通用代码规范（枚举用 `switch`、禁止魔法值、分层清晰等）。
 - 平台规则更新不会自动同步到旧项目：这是 `/init` inline 模式的取舍，换来项目自给自足、跨工具兼容。
 - 不再依赖 ruler；新增工具只要在 `sync.config.json.targets` 加一条，按 `single` / `multi` 选 scope 即可，无需改脚本。

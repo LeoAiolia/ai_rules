@@ -4,13 +4,11 @@
 
 ## 语言基础
 
-- **必须启用 Dart 空安全**（null safety），禁止 `!` 强制解包（除有明确保证的场景，且必须注释原因）。
+- 禁止 `!` 强制解包（除有明确保证的场景，且必须注释原因）。
 - 遵循 `flutter_lints` 规范，`dart analyze` 必须**零警告**。
-- 禁止使用已废弃的 Dart / Flutter API。
 
 ## Widget
 
-- `build()` **仅允许 UI 代码**，禁止业务逻辑 / 复杂计算 / 网络请求。
 - Widget 必须拆分为复用组件，避免单个 Widget 过大。
 - 避免在 `build()` 中创建对象（优先 `const`）。
 - **优先使用 Cupertino 风格组件**（iOS 为主）。
@@ -26,9 +24,7 @@
 
 - 能用 `const` **必须**用（Widget、构造函数、集合字面量）。
 - 避免不必要的 `rebuild`：合理使用 `const` / `Selector` / `ValueListenableBuilder`。
-- 列表**必须使用 `ListView.builder` / `Sliver` 系列**（懒加载）。
 - 图片加载须有缓存与占位。
-- **避免内存泄漏**：`StreamSubscription`、`AnimationController`、`TextEditingController` 等必须在 `dispose()` 中释放。
 
 ## 网络（通用分层规范见 `20-common-code.md` 架构分层）
 
@@ -120,13 +116,8 @@ factory UserModel.fromJson(JSON json) => UserModel(
 
 ## Flutter 自检清单（追加到通用清单）
 
-- [ ] `build()` 是否包含业务逻辑
-- [ ] 是否滥用 `setState`
-- [ ] 是否存在不必要的 `rebuild`
-- [ ] JSON 是否使用 **g_json**
+- [ ] JSON 是否使用 **g_json**（非 `jsonDecode` / 手动 Map 取值）
 - [ ] `TextStyle` 是否**显式设置 `color`**
-- [ ] `const` 是否可加未加
-- [ ] 列表是否使用 `builder`
 - [ ] 资源路径是否为**完整字面量**（禁止拼接）
 - [ ] UI 文案是否为**整句**（禁止分段拼接）
-- [ ] `dispose()` 是否释放资源（Stream / Controller / Animation）
+- [ ] 状态管理是否混用多种方案 / 滥用 `setState`

@@ -1,7 +1,7 @@
 # Android 规则（偶尔使用）
 
 - 使用 **Kotlin**，开启空安全；禁止使用 `!!` 强制非空（极少数明确不为 null 的边界场景需注释原因）。
-- 最低支持 **minSdk 29（Android 10）**，目标 **targetSdk 34**。
+- 最低支持 **minSdk 29（Android 10）**，目标 **targetSdk 36**。
 - 遵循 Material Design 规范。
 
 ## 架构（通用分层规范见 `20-common-code.md` 架构分层）
@@ -24,7 +24,7 @@
 ## 数据存储
 
 - 结构化数据使用 **Room**；轻量配置使用 **DataStore**（替代 SharedPreferences）。
-- 敏感信息使用 **EncryptedSharedPreferences** 或 **Keystore**，禁止明文存储。
+- 敏感信息使用 **Android Keystore**（加密场景配合 **Tink**），禁止明文存储；`EncryptedSharedPreferences` 已废弃，禁止使用。
 
 ## 内存与生命周期
 
@@ -39,9 +39,7 @@
 ## Android 自检清单（追加到通用清单）
 
 - [ ] 是否使用了 `!!` 强制非空
-- [ ] 是否裸 `Thread` / `AsyncTask`（应换为 Coroutines）
 - [ ] 协程是否绑定生命周期作用域（不是 `GlobalScope`）
-- [ ] `Fragment` 是否用 `viewLifecycleOwner` 观察数据流
 - [ ] 字符串是否走 `strings.xml`
-- [ ] 敏感数据是否避免明文存储
+- [ ] 敏感数据是否走 **Keystore / Tink**（非明文、非已废弃的 EncryptedSharedPreferences）
 - [ ] 新 UI 是否优先 Compose

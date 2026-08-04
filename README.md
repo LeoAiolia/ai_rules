@@ -46,7 +46,6 @@ ai_rules/
 │   │   ├── 00-meta.md
 │   │   ├── 10-interaction.md
 │   │   ├── 20-common-code.md
-│   │   ├── 60-logging.md
 │   │   ├── 90-checklist.md
 │   │   └── 99-init-protocol.md
 │   ├── lang/                  # 平台规则（不参与 sync，/init 时 inline）

@@ -1,7 +1,7 @@
 {
   "name": "ai-rules",
-  "version": "1.2.0",
-  "description": "AI 编程助手规则单一事实源，支持同步到 Claude Code / Codex / Cline / Trae / Antigravity",
+  "version": "3.0.0",
+  "description": "AI 编程助手规则单一事实源，支持同步到 Claude Code / Codex / Trae / Trae CN",
   "private": true,
   "scripts": {
     "sync": "node scripts/sync.js",
