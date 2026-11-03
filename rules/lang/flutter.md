@@ -23,18 +23,7 @@
 - 图片、字体、JSON、Lottie 等资源路径**必须写成完整字面量**。
 - 禁止动态拼接（如 `'assets/icons/$name.png'`、`"ic_" + type + ".png"`）。
 - **原因**：Flutter 资源清理工具（`flutter_asset_cleaner` 等）通过静态字符串扫描判断资源引用，拼接路径会被误判为未使用而删除。
-- **正确做法**：集中定义在资源常量类 / 枚举中。
-
-```dart
-// 正确：完整字面量
-class AppAssets {
-  static const iconHome = 'assets/icons/ic_home.png';
-  static const iconMine = 'assets/icons/ic_mine.png';
-}
-
-// 错误：动态拼接
-String iconOf(String name) => 'assets/icons/ic_$name.png'; // 禁止
-```
+- **正确做法**：集中定义在资源常量类 / 枚举中（如 `AppAssets.iconHome = 'assets/icons/ic_home.png'`）。
 
 ## UI 文案（强制：禁止分段拼接）
 
@@ -49,49 +38,15 @@ String iconOf(String name) => 'assets/icons/ic_$name.png'; // 禁止
 - **原因**：深色模式下默认色会随主题反转，未显式设置会导致展示不一致或不可见。
 - 颜色必须取自主题 / 设计 Token（如 `AppColors.textPrimary`），禁止硬编码 `Color(0xFF...)`。
 
-```dart
-// 正确
-Text('标题', style: TextStyle(fontSize: 16, color: AppColors.textPrimary))
-
-// 错误：未设置 color
-Text('标题', style: TextStyle(fontSize: 16))
-```
-
 ## JSON 解析（强制使用 g_json）
 
-**解析入口**
-
-```dart
-final json = JSON.parse(str);
-// 或
-final json = JSON(map);
-```
-
-**取值**
-
-```dart
-json['key'].stringValue
-json['key'].integerValue
-json['key'].booleanValue
-json['a']['b'].stringValue  // 嵌套链式 / 路径访问
-```
-
-**Model 定义**
-
-```dart
-factory UserModel.fromJson(JSON json) => UserModel(
-  id: json['id'].integerValue,
-  name: json['name'].stringValue,
-);
-```
+**用法**：`JSON.parse(str)` / `JSON(map)` 入口；取值 `json['a']['b'].stringValue` / `.integerValue` / `.booleanValue`；Model 用 `factory X.fromJson(JSON json)`。
 
 **禁止事项**
 
 - 禁止 `jsonDecode` 直接解析业务数据
 - 禁止手动 `Map<String, dynamic>` 取值
 - 禁止 `as` 强制类型转换
-
-**数据流**：`JSON 字符串 → g_json → Model`
 
 ## 原生桥接（含 iOS / Android）
 

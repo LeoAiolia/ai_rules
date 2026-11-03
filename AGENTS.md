@@ -61,7 +61,7 @@ CLAUDE.md  AGENTS.md  user_rules/     并 inline 到该项目的 AGENTS.md
 
 ## 修改规则的工作流
 
-1. **改通用规则**：编辑 `rules/global/NN-*.md`，更新 `00-meta.md` 顶部 `版本` / `最后更新`，在 `rules/CHANGELOG.md` 加一条。
+1. **改通用规则**：编辑 `rules/global/NN-*.md`，更新 `00-meta.md` 顶部 `版本` / `最后更新`（与 CHANGELOG 一致），在 `rules/CHANGELOG.md` 加一条。
 2. **改平台规则**：编辑 `rules/lang/<语言>.md`。这部分不参与 sync——已 init 过的旧项目要重跑 `/init` 才能拿到更新。
 3. **新增平台**：`rules/lang/<新语言>.md` 加文件 + 在 `rules/global/99-init-protocol.md` 的语言识别表里加一行。
 4. **新增通用规则文件**：在 `rules/global/` 加 `NN-*.md`，前缀决定拼接顺序（在已有数字间留间隙：00→10→20→90→99 这种）。

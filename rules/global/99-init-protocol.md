@@ -1,63 +1,27 @@
 # 项目初始化（/init）协议
 
-## AGENTS.md / CLAUDE.md 文档结构
+## 文档结构
 
-执行 `/init`（或为新项目创建 AI 指引文档）时，统一采用以下结构：
+- **`AGENTS.md`**：写全部正文（项目简介、常用命令、架构概览、约定 + 注入的平台规则），是跨工具共享的事实源。
+- **`CLAUDE.md`**：只写一行 `@AGENTS.md`。项目仓库只跟踪 `AGENTS.md`。
+- 已有 `AGENTS.md` 的项目只改 `AGENTS.md`；已有 `CLAUDE.md` 且内容是正文的，建议迁移到 `AGENTS.md` 后改成 `@AGENTS.md`。
 
-- **`AGENTS.md`**：写所有正文内容（项目简介、常用命令、架构概览、约定 + 注入的平台规则）。这是事实源，供多个 AI 工具（Claude Code / Codex / Trae 等）共享。
-- **`CLAUDE.md`**：只写一行 `@AGENTS.md`，作为薄导入层。
-- **git 跟踪**：项目仓库 **只把 `AGENTS.md` 加入版本控制**；`CLAUDE.md` 是工具私有的导入层（按需保留即可，不强制提交）。
+## 平台规则注入
 
-**原因**：避免在多个 AI 工具的指引文件里重复维护同一份内容；保持跨工具一致性；只跟踪事实源避免双写漂移。
+按下表识别主平台（可命中多个），把对应源文件**完整内容 inline** 追加到项目根 `AGENTS.md`，多个之间用 `---` 分隔。
 
-**适用场景**：
+| 平台 | 触发条件 | 源文件 |
+|---|---|---|
+| Flutter | `pubspec.yaml` 含 `flutter:` | `${AI_RULES_REPO}/rules/lang/flutter.md` |
+| iOS App | `*.xcodeproj` / `*.xcworkspace` / `Podfile` | `${AI_RULES_REPO}/rules/lang/swift.md` |
+| Android | `build.gradle*` / `settings.gradle*` 且有 `android/` 目录或 `applicationId` | `${AI_RULES_REPO}/rules/lang/android.md` |
+| React Native | `package.json` 依赖含 `react-native`，且有 `ios/` + `android/` | 暂无规则文件 |
 
-- 新项目第一次跑 `/init` 时默认按此模式落地。
-- 已有 `AGENTS.md` 的项目：只改 `AGENTS.md`，不要把内容塞进 `CLAUDE.md`。
-- 已有 `CLAUDE.md` 但内容是正文的项目：建议把正文迁移到 `AGENTS.md`，并把 `CLAUDE.md` 改成 `@AGENTS.md`。
+不要识别为目标平台：
 
-## 平台规则按需注入
+- 仅有 `Package.swift` 无 `*.xcodeproj` → Swift Package，不注入 iOS 规则。
+- Flutter 项目自带的 `ios/` / `android/` → 已被 Flutter 覆盖，不额外注入（除非用户明确要做原生定制）。
 
-执行 `/init` 时，除项目自身描述外，还要从规则仓库注入**对应平台的规则**：
+无法识别时直接询问用户，不要猜。
 
-### 1. 识别项目主语言
-
-按以下规则匹配（顺序无关，可同时命中多个）：
-
-| 平台 | 触发条件 |
-|---|---|
-| **Flutter** | 存在 `pubspec.yaml`，且其中包含 `flutter:` 字段或 `dependencies: flutter:` |
-| **iOS App** | 存在 `*.xcodeproj` / `*.xcworkspace` / `Podfile`（**纯 iOS App 项目**） |
-| **Android** | 存在 `build.gradle` / `build.gradle.kts` / `settings.gradle*`，且有 `android/` 目录或 `applicationId` 配置 |
-| **React Native** | 存在 `package.json` 且 `dependencies` 含 `react-native`，并有 `ios/` + `android/` 目录 |
-
-**不要识别**为目标平台的情况：
-
-- 仅有 `Package.swift` 且无 `*.xcodeproj` → 这是 **Swift Package**，不是 iOS App，不要注入 iOS 规则。
-- Flutter 项目自带的 `ios/` 与 `android/` 子目录 → 已被 Flutter 覆盖，**不**额外注入 Swift / Android 规则（除非用户明确说要做原生定制）。
-
-**多平台项目**：按上表顺序追加多个文件，每个之间用 `---` 分隔。
-
-**无法识别 / 边界情况**：直接询问用户当前项目的主平台，由用户指定后再注入；不要猜。
-
-### 2. 拉取并追加平台规则
-
-把以下文件**完整内容**追加到项目根 `AGENTS.md`（用一行 `---` 与上文隔开）：
-
-| 平台 | 源文件路径 |
-|---|---|
-| Flutter | `${AI_RULES_REPO}/rules/lang/flutter.md` |
-| iOS | `${AI_RULES_REPO}/rules/lang/swift.md` |
-| Android | `${AI_RULES_REPO}/rules/lang/android.md` |
-
-> `${AI_RULES_REPO}` 在 sync 时会被替换为本仓库的实际绝对路径，下游工具读到的是真实路径。
-
-多平台项目按顺序追加多个文件，每个之间用 `---` 分隔。
-
-### 3. 维护 CLAUDE.md
-
-`CLAUDE.md` 始终只写一行 `@AGENTS.md`，不直接放规则内容。
-
-### 为什么用 inline 而不是 `@import`
-
-当前下游工具（Codex / Trae 等）对 `@filepath` 语法支持不一致；inline 内容保证所有工具都能读到，且项目自给自足，离开规则仓库也能正常工作。代价是规则更新后需要重新跑 `/init` 同步——这是有意识的取舍。
+> 用 inline 而非 `@import`：各工具对 `@filepath` 支持不一致，inline 保证项目自给自足；代价是规则更新后需重跑 `/init`。

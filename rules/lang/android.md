@@ -1,7 +1,6 @@
-# Android 规则（偶尔使用）
+# Android 规则
 
 - 使用 **Kotlin**，开启空安全；禁止使用 `!!` 强制非空（极少数明确不为 null 的边界场景需注释原因）。
-- 最低支持 **minSdk 29（Android 10）**，目标 **targetSdk 36**。
 
 ## 架构（通用分层规范见 `20-common-code.md` 架构分层）
 
