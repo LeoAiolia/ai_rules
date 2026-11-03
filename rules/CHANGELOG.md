@@ -2,6 +2,7 @@
 
 | 版本 | 日期 | 变更 |
 |---|---|---|
+| v3.2.0 | 2026-11-03 | **二次瘦身**：`10-interaction` 删除「回答结构」模板及「确认技术栈 / 最佳实践补齐 / 不冗余 / 禁用废弃 API / 错误处理」等模型默认行为，保留 ≥2 方案、依赖审批、TODO 标注；`20-common-code` 日志仅留脱敏硬规则；`lang/*` 删除各平台自检清单（与正文重复）及 flutter_lints / const / rebuild / Widget 拆分 / 主线程 / 内存泄漏 / SafeArea 等默认行为条目 |
 | v3.1.0 | 2026-08-04 | `10-interaction` 新增「Git 提交」一节：禁止自动 git 写操作（项目 AGENTS.md 声明允许自动提交的除外）；用户指示 commit 仅当次有效、授权不延续；不擅自 `git add .`；不主动 push |
 | v3.0.0 | 2026-08-04 | **强模型时代瘦身**：删除行业通用规则（命名、函数设计、DRY、异常处理——模型默认行为，回归并确认 v1.4.0 的立场）；`90-checklist` 压缩为 5 条非默认硬约束；`lang/flutter` 删除 `build()`/列表 builder/`dispose` 等默认行为规则及"必须启用空安全"（Dart 3 已强制）；`lang/swift` 升级 Swift 6+ / iOS 16+，架构改为 MVVM + Observation / async-await（Combine 仅限已有代码）；`lang/android` targetSdk 34→36，废弃的 EncryptedSharedPreferences 改为 Keystore + Tink；`package.json` 版本与描述对齐（移除 Cline / Antigravity）；README 目录树修正（`60-logging` 已删除）；`00-meta` 适用范围补 Trae CN |
 | v2.2.0 | 2026-05-07 | **规则内容重构**：`20-common-code` 补回命名/魔法值/函数设计/DRY/异常处理；删除其中 Dart 专属的资源路径与 UI 文案小节并下沉到 `lang/flutter`；合并 `60-logging` 进 `20-common-code`（删除独立文件）；`90-checklist` 与规则严格对齐；`10-interaction` 细化"报错排查"与"≥2 方案"的适用语境；`lang/swift` 删除"与 Flutter 桥接"段（统一移到 `flutter.md` 的"原生桥接"），自检清单补全；`lang/android` 体量对齐（Coroutines/Compose/Hilt/Room/Keystore + 自检清单）；`99-init-protocol` 精细化语言识别（区分 iOS App 与 SPM、补 React Native、不识别时回落到询问）；`00-meta` 拆分 IDE 与 AI 工具 |

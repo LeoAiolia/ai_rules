@@ -1,30 +1,17 @@
 # Flutter / Dart 规则（强制）
 
-所有代码必须优先保证：**可维护性、可扩展性、性能、清晰结构**。
-
 ## 语言基础
 
 - 禁止 `!` 强制解包（除有明确保证的场景，且必须注释原因）。
-- 遵循 `flutter_lints` 规范，`dart analyze` 必须**零警告**。
 
 ## Widget
 
-- Widget 必须拆分为复用组件，避免单个 Widget 过大。
-- 避免在 `build()` 中创建对象（优先 `const`）。
 - **优先使用 Cupertino 风格组件**（iOS 为主）。
 
 ## 状态管理
 
-- **禁止滥用 `setState`**（仅用于纯本地 UI 状态）。
-- 全局 / 跨页状态必须使用统一的状态管理方案（Provider / Riverpod / GetX 等任选其一）。
-- **同一项目内禁止混用多种方案**；具体选型在项目 `/init` 时由 `AGENTS.md` 锁定。
-- 禁止多处修改同一状态；状态变更必须经由 ViewModel / Controller。
-
-## 性能与内存
-
-- 能用 `const` **必须**用（Widget、构造函数、集合字面量）。
-- 避免不必要的 `rebuild`：合理使用 `const` / `Selector` / `ValueListenableBuilder`。
-- 图片加载须有缓存与占位。
+- **同一项目内禁止混用多种状态管理方案**；具体选型由项目 `AGENTS.md` 锁定。
+- 状态变更必须经由 ViewModel / Controller，`setState` 仅用于纯本地 UI 状态。
 
 ## 网络（通用分层规范见 `20-common-code.md` 架构分层）
 
@@ -113,11 +100,3 @@ factory UserModel.fromJson(JSON json) => UserModel(
 - Android 侧入口集中在专用 `*Plugin.kt`，错误必须通过 `MethodChannel.Result.error(...)` 回传。
 - Dart 侧必须包装为业务接口，调用方禁止直接持有 `MethodChannel`。
 - 大数据量传输优先 `BasicMessageChannel` / `EventChannel`，避免序列化阻塞主线程。
-
-## Flutter 自检清单（追加到通用清单）
-
-- [ ] JSON 是否使用 **g_json**（非 `jsonDecode` / 手动 Map 取值）
-- [ ] `TextStyle` 是否**显式设置 `color`**
-- [ ] 资源路径是否为**完整字面量**（禁止拼接）
-- [ ] UI 文案是否为**整句**（禁止分段拼接）
-- [ ] 状态管理是否混用多种方案 / 滥用 `setState`
